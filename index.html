@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>L'Italia che si svuota · 7.896 comuni, 2002–2026</title>
+  <meta name="description" content="Mappa animata della popolazione di tutti i comuni italiani dal 2002 al 2026, con dati ISTAT, e un'AI che risponde solo dai dati." />
+  <meta name="theme-color" content="#0b0d12" />
+  <meta property="og:title" content="L'Italia che si svuota" />
+  <meta property="og:description" content="Come è cambiata la popolazione di ogni comune italiano dal 2002 a oggi. Dati ISTAT." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23ff5a4e'/><circle cx='16' cy='16' r='7' fill='%230b0d12'/></svg>" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="map" aria-label="Mappa dei comuni italiani colorati per variazione di popolazione"></canvas>
+    <div id="loading"><div class="spinner"></div><span>Carico 7.896 comuni…</span></div>
+
+    <header class="panel hero">
+      <div class="kicker">Dati ISTAT · 2002–2026</div>
+      <h1>L'Italia che <em>si svuota</em></h1>
+      <p class="lede">Ogni comune italiano, colorato in base a quanto è cambiata la sua popolazione rispetto al 2002.</p>
+      <div class="bigyear"><span id="year">2002</span><span id="yearTag"></span></div>
+      <div class="stats pop-only">
+        <div><b id="statPop">–</b><span>residenti in Italia</span></div>
+        <div><b id="statLoss">–</b><span>comuni in calo dal 2002</span></div>
+      </div>
+      <div class="stats flows-only">
+        <div><b id="statNetSud" class="neg">–</b><span>saldo netto Sud e Isole verso Centro-Nord, 2002–2025</span></div>
+        <div><b id="statEmi" class="vio">–</b><span>italiani emigrati all'estero, 2002–2025</span></div>
+      </div>
+      <div id="flowYearLine" class="flowline flows-only"></div>
+    </header>
+
+    <div class="panel seg" id="modeToggle" role="tablist">
+      <button data-mode="pop" class="on">Popolazione</button>
+      <button data-mode="flows">Spostamenti</button>
+    </div>
+    <aside class="panel flowpanel" id="flowPanel" hidden></aside>
+    <div class="panel hint flows-only" id="flowHint">Tocca una regione per vedere dove va la sua gente</div>
+
+    <aside class="panel ask" id="askPanel">
+      <div class="ask-head"><span class="dot"></span> Chiedi ai dati</div>
+      <form id="askForm" autocomplete="off">
+        <input id="askInput" maxlength="300" placeholder="Es. dove è andata la gente di Molise e Basilicata?" />
+        <button type="submit" id="askBtn" aria-label="Chiedi">→</button>
+      </form>
+      <div class="chips" id="chips">
+        <button>Dove è andata la gente di Molise e Basilicata?</button>
+        <button>Quali province si svuotano di più?</button>
+        <button>Come è cambiata la Sardegna?</button>
+        <button>Dove va chi lascia la Calabria?</button>
+        <button>Milano e Bologna crescono ancora?</button>
+      </div>
+      <div id="answer" class="answer" hidden></div>
+    </aside>
+
+    <div class="panel legend">
+      <div class="legend-title" id="legendTitle">Variazione dei residenti rispetto al 2002</div>
+      <canvas id="legendBar" width="260" height="10"></canvas>
+      <div class="legend-labels" id="legendLabels"><span>−30%</span><span>0</span><span>+30%</span></div>
+      <div class="legend-flows" id="legendFlows" hidden>
+        <span><i style="background:#ff6a3d"></i>Sud → Centro-Nord · in uscita</span>
+        <span><i style="background:#3fd0ff"></i>Centro-Nord → Sud · in arrivo</span>
+        <span><i style="background:#d7dce6"></i>stessa area</span>
+        <span><i style="background:#c38bff"></i>italiani verso l'estero</span>
+      </div>
+    </div>
+
+    <div class="timeline panel">
+      <button id="play" aria-label="Riproduci">▶</button>
+      <div class="track">
+        <input type="range" id="slider" min="0" max="24" step="0.001" value="0" aria-label="Anno" />
+        <div class="ticks" id="ticks"></div>
+      </div>
+    </div>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+    <button id="resetZoom" class="panel small" hidden>Vista intera</button>
+    <button id="infoBtn" class="panel small info">Fonti e note</button>
+    <div id="info" class="panel infobox" hidden>
+      <button class="close" id="infoClose" aria-label="Chiudi">×</button>
+      <h3>Fonti</h3>
+      <ul>
+        <li>ISTAT, <a href="https://demo.istat.it/app/?i=RIC&l=it" target="_blank" rel="noopener">Ricostruzione della popolazione intercensuaria</a>: residenti al 1° gennaio 2002–2019 per comune.</li>
+        <li>ISTAT, <a href="https://demo.istat.it/app/?i=POS&l=it" target="_blank" rel="noopener">Popolazione residente al 1° gennaio (POSAS)</a>: 2020–2025; 2026 è una <b>stima</b> provvisoria.</li>
+        <li>ISTAT, <a href="https://www.istat.it/storage/cartografia/confini_amministrativi/generalizzati/2026/Limiti01012026_g.zip" target="_blank" rel="noopener">Confini delle unità amministrative</a> al 1° gennaio 2026 (versione generalizzata, semplificata con mapshaper).</li>
+        <li>ISTAT, <a href="https://demo.istat.it/tavole/?l=it&t=apr4" target="_blank" rel="noopener">Trasferimenti di residenza</a> (dataset 28_185 DCIS_MIGRAZIONI: migrazioni interne; emigrati e immigrati per provincia/regione; emigrati per paese di destinazione), 2002–2025; il 2025 è <b>provvisorio</b>.</li>
+        <li>ISTAT, <a href="https://www.istat.it/storage/codici-unita-amministrative/Variazioni-amministrative-e-territoriali-dal-1991.zip" target="_blank" rel="noopener">Variazioni amministrative dal 1991</a> ed Elenco dei comuni soppressi.</li>
+      </ul>
+      <h3>Note</h3>
+      <ul>
+        <li>Tutti i dati sono riportati sui <b>confini comunali al 1° gennaio 2026</b> (7.896 comuni). I comuni nati da fusioni mostrano la somma dei comuni d'origine per gli anni precedenti; cambi di codice e di provincia (es. Sardegna) sono ricondotti al comune attuale.</li>
+        <li>Misiliscemi (TP) è nato nel 2021 da una parte di Trapani: non ha dati prima del 2022 e il calo di Trapani nel 2022 è in parte dovuto al distacco.</li>
+        <li>Tra 2019 (ricostruzione) e 2020 (dati post-censimento permanente) può esserci una piccola discontinuità statistica.</li>
+        <li><b>Spostamenti:</b> ISTAT pubblica la matrice origine-destinazione dei trasferimenti di residenza solo tra <b>regioni</b> (non tra province o comuni): le frecce collegano il centro geografico delle regioni, non le città. Sono contati i cambi di residenza anagrafica (italiani e stranieri) tra regioni diverse; quelli all'interno della stessa regione sono esclusi. Il Trentino-Alto Adige è trattato come una regione unica.</li>
+        <li>Sud e Isole = Abruzzo, Molise, Campania, Puglia, Basilicata, Calabria, Sicilia, Sardegna; Centro-Nord = le altre regioni. Saldo = arrivi dal Centro-Nord meno partenze verso il Centro-Nord, sommati sul 2002–2025.</li>
+        <li>Estero: cancellazioni per l'estero e iscrizioni dall'estero; l'emigrazione reale è probabilmente più alta perché non tutti si cancellano dall'anagrafe. Il colore delle regioni in modalità Spostamenti è il saldo migratorio totale (interno + estero) per 1.000 residenti nell'anno. Per il 2026 non ci sono ancora dati sui flussi: si mostra il 2025.</li>
+        <li>L'AI risponde solo sulla base di dati aggregati calcolati da questi file; i dati di popolazione non dicono <i>dove</i> le persone si sono trasferite.</li>
+      </ul>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
