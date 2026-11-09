@@ -1,0 +1,25 @@
+# dipendenze e build
+node_modules/
+dist/
+.vercel/
+.vite/
+
+# segreti e variabili d'ambiente
+.env
+.env.*
+!.env.example
+
+# download grezzi ISTAT (si rigenerano con gli script) e intermedi
+raw/
+*.zip
+*.shp
+*.dbf
+*.shx
+*.prj
+
+# screenshot di test (quelli per il README stanno in docs/)
+screenshots/
+
+# varie
+.DS_Store
+*.log
