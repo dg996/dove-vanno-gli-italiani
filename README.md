@@ -1,8 +1,8 @@
-# Dove vanno gli italiani · L'Italia che si svuota
+# dovevannogliitaliani
 
 Mappa animata dei Comuni italiani dal 2002 a oggi: chi si svuota, chi cresce e dove vanno le persone, tra regioni e verso l'estero. Dati ISTAT, con domande in linguaggio naturale all'AI.
 
-**Live:** https://italia-che-si-svuota.vercel.app
+**Live:** https://dovevannogliitaliani.vercel.app (il vecchio indirizzo italia-che-si-svuota.vercel.app continua a funzionare)
 
 ![Spostamenti tra regioni e verso l'estero](docs/spostamenti.jpg)
 
@@ -14,16 +14,27 @@ Mappa animata dei Comuni italiani dal 2002 a oggi: chi si svuota, chi cresce e d
 - Passando sopra (o toccando) un Comune: residenti, variazione e sparkline dell'andamento. I Comuni nati da fusioni includono i Comuni d'origine.
 
 **Modalità "Spostamenti"**
-- Archi animati con particelle tra le regioni: arancione Sud → Centro-Nord, azzurro Centro-Nord → Sud, viola italiani verso l'estero. Spessore e densità delle particelle sono proporzionali ai trasferimenti.
+- Archi animati tra le regioni, in una sola tinta: più scuri i trasferimenti dal Sud e Isole al Centro-Nord, grigi gli altri, tratteggiati quelli verso l'estero. Spessore e densità delle particelle sono proporzionali ai trasferimenti.
 - Le regioni sono colorate per saldo migratorio totale (interno + estero) per 1.000 residenti; i flussi seguono l'anno della timeline.
 - Clic su una regione: dove sono andati i suoi residenti, da dove arrivano i nuovi, saldo, italiani emigrati e rientrati dall'estero (per anno o per tutto il 2002–2025).
 - Numeri di testata: saldo netto Sud e Isole verso Centro-Nord 2002–2025 (−1,28 milioni) e italiani emigrati all'estero 2002–2025 (1,89 milioni).
+
+**Anno per anno (scorrendo la pagina)**
+- Sotto la mappa, una barra dell'anno resta fissa in alto; scorrendo, ogni paragrafo porta l'anno di cui parla e mappa, grafici e tabelle si aggiornano insieme.
+- Residenti in Italia 2002–2026 (linea, con l'anno corrente evidenziato; il 2026 è una stima).
+- Regioni ordinate per variazione % rispetto al 2002 nell'anno scelto.
+- I 10 comuni che perdono e i 10 che guadagnano di più (rispetto al 2002 o all'anno prima, con soglia di popolazione), con colonne ordinabili.
+- Trasferimenti Sud e Isole ↔ Centro-Nord per anno, con il saldo netto.
+- Italiani cancellati per l'estero e rientrati, per anno.
+- I 15 spostamenti più frequenti tra regioni nell'anno scelto (tabella ordinabile).
 
 **Chiedi ai dati (AI)**
 - Domande in italiano, es. "Dove va chi lascia la Calabria?" o "Come è cambiata la Sardegna?".
 - Una funzione serverless (`api/ask.js`, Vercel AI SDK + AI Gateway, modello economico) riceve solo aggregati calcolati dai file ISTAT; ogni numero della risposta viene verificato contro questi dati e, se non torna, si usa una risposta a modello deterministica. La mappa si sposta sull'area o passa agli spostamenti della regione citata.
 
 ![Popolazione 2025](docs/popolazione.jpg)
+
+![Grafici anno per anno](docs/anno-per-anno.jpg)
 
 ## Fonti dei dati (tutte ISTAT)
 
@@ -47,7 +58,7 @@ Mappa animata dei Comuni italiani dal 2002 a oggi: chi si svuota, chi cresce e d
 ## Struttura
 
 ```
-index.html, src/          frontend statico (Vite, d3, canvas)
+index.html, src/          frontend statico (Vite, d3): main.js mappa su canvas, story.js grafici e tabelle
 public/data/              dati precalcolati serviti come file statici (~3,5 MB)
 api/ask.js                unica funzione serverless (AI)
 api/_data/                aggregati letti dalla funzione AI (~0,6 MB)

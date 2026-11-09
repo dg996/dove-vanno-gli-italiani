@@ -23,8 +23,7 @@
     "vite": "^6.4.6"
   },
   "dependencies": {
-    "@fontsource/fraunces": "^5.3.0",
-    "@fontsource/inter": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "ai": "^7.0.166",
     "d3": "^7.9.2",
     "topojson-client": "^3.1.0"

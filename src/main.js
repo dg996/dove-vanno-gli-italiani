@@ -1,10 +1,8 @@
-import '@fontsource/inter/latin-400.css';
-import '@fontsource/inter/latin-500.css';
-import '@fontsource/inter/latin-600.css';
-import '@fontsource/inter/latin-700.css';
-import '@fontsource/fraunces/latin-700.css';
-import '@fontsource/fraunces/latin-700-italic.css';
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
 import './style.css';
+import { initStory } from './story.js';
 import * as d3 from 'd3';
 import { feature, mesh, merge } from 'topojson-client';
 
@@ -14,9 +12,11 @@ const fmtPct = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toLocaleS
 
 const DOMAIN = 30; // ±30% clamp
 const NB = 121;
-const interp = d3.piecewise(d3.interpolateLab, ['#ff2d3d', '#ff6a4d', '#f0a27c', '#3a404e', '#86c0ff', '#4c9dff', '#2563ff']);
+// colour-blind-safe diverging scale: orange = loss, blue = growth, light grey = no change
+const PALETTE = ['#8f3a0f', '#c25a1f', '#e9a57a', '#e4e1da', '#9fc2dc', '#4f86b4', '#1f4f7a'];
+const interp = d3.piecewise(d3.interpolateLab, PALETTE);
 const LUT = d3.range(NB).map((i) => d3.color(interp(i / (NB - 1))).formatHex());
-const NULLC = '#1b1f28';
+const NULLC = '#cfcbc2';
 
 async function main() {
   const [topo, pop, flows] = await Promise.all([
@@ -41,6 +41,8 @@ async function main() {
   const meshCoast = mesh(topo, obj, (a, b) => a === b);
 
   const canvas = $('map');
+  const appEl = $('app');
+  let mapVisible = true, pendingDraw = false;
   const ctx = canvas.getContext('2d');
   const hitCtx = document.createElement('canvas').getContext('2d');
   let W, H, dpr, paths, bounds, grid, GS = 16, gw, gh, P = {}, projection;
@@ -48,15 +50,16 @@ async function main() {
   let t = 0; // fractional year index
   let hover = -1, pinned = -1;
   let hl = null; // {set:Set(index), outline:Path2D}
+  let story = { update() {}, setPlaying() {} };
 
   function mapRect() {
     const mobile = W <= 820;
-    const hb = document.querySelector('.hero').getBoundingClientRect().bottom;
-    return mobile ? [[12, hb + 54], [W - 12, H - 190]] : [[W > 1180 ? 380 : 20, 24], [W - (W > 1180 ? 400 : 20), H - 100]];
+    const hero = document.querySelector('.hero'); const hb = hero.offsetTop + hero.offsetHeight;
+    return mobile ? [[12, hb + 44], [W - 12, H - 170]] : [[W > 1180 ? 370 : 20, 24], [W - (W > 1180 ? 390 : 20), H - 96]];
   }
 
   function layout() {
-    const hb = document.querySelector('.hero').getBoundingClientRect().bottom;
+    const hero = document.querySelector('.hero'); const hb = hero.offsetTop + hero.offsetHeight;
     document.documentElement.style.setProperty('--hb', Math.round(hb) + 'px');
   }
   function setup() {
@@ -110,6 +113,7 @@ async function main() {
   const requestDraw = () => { if (!raf) raf = requestAnimationFrame(draw); };
   function draw() {
     raf = 0;
+    if (!mapVisible) { pendingDraw = true; return; }
     if (mode === 'flows') { if (!flowRaf) flowRaf = requestAnimationFrame(flowLoop); return; }
     const k = transform.k;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -117,24 +121,23 @@ async function main() {
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * transform.x, dpr * transform.y);
     for (const g of groups) g.length = 0;
     for (let i = 0; i < N; i++) groups[bucket(pctAt(i, t)) + 1].push(i);
-    // glow under the coast
-    ctx.save(); ctx.shadowColor = 'rgba(78,168,255,.18)'; ctx.shadowBlur = 30; ctx.fillStyle = '#151922'; ctx.fill(P.coast); ctx.restore();
+    ctx.fillStyle = NULLC; ctx.fill(P.coast);
     for (let g = 0; g <= NB; g++) {
       const arr = groups[g]; if (!arr.length) continue;
       ctx.fillStyle = g === 0 ? NULLC : LUT[g - 1];
       if (hl) {
-        for (const i of arr) { ctx.globalAlpha = hl.set.has(i) ? 1 : 0.22; ctx.fill(paths[i]); }
+        for (const i of arr) { ctx.globalAlpha = hl.set.has(i) ? 1 : 0.25; ctx.fill(paths[i]); }
         ctx.globalAlpha = 1;
       } else for (const i of arr) ctx.fill(paths[i]);
     }
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(11,13,18,.45)'; ctx.lineWidth = 0.35 / k; ctx.stroke(P.com);
-    ctx.strokeStyle = 'rgba(255,255,255,.10)'; ctx.lineWidth = 0.6 / k; ctx.stroke(P.prov);
-    ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.lineWidth = 1 / k; ctx.stroke(P.reg);
-    ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1 / k; ctx.stroke(P.coast);
-    if (hl) { ctx.strokeStyle = '#ffcf6e'; ctx.lineWidth = 2 / k; ctx.stroke(hl.outline); }
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 0.3 / k; ctx.stroke(P.com);
+    ctx.strokeStyle = 'rgba(40,40,40,.18)'; ctx.lineWidth = 0.5 / k; ctx.stroke(P.prov);
+    ctx.strokeStyle = 'rgba(30,30,30,.55)'; ctx.lineWidth = 0.8 / k; ctx.stroke(P.reg);
+    ctx.strokeStyle = 'rgba(30,30,30,.6)'; ctx.lineWidth = 0.8 / k; ctx.stroke(P.coast);
+    if (hl) { ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2 / k; ctx.stroke(hl.outline); }
     const sel = pinned >= 0 ? pinned : hover;
-    if (sel >= 0) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 / k; ctx.stroke(paths[sel]); }
+    if (sel >= 0) { ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2 / k; ctx.stroke(paths[sel]); }
   }
 
   // ---- UI: year, stats ----
@@ -153,12 +156,13 @@ async function main() {
     const sel = pinned >= 0 ? pinned : hover;
     if (mode === 'flows') { updateFlowHero(); if (selReg) renderFlowPanel(); }
     else if (sel >= 0) renderTooltip(sel);
+    story.update(t);
   }
   function setT(v) { t = Math.max(0, Math.min(NY - 1, v)); updateUI(); requestDraw(); }
 
   // legend
   const lg = $('legendBar').getContext('2d');
-  LUT.forEach((c, i) => { lg.fillStyle = c; lg.fillRect(i * 260 / NB, 0, 260 / NB + 1, 10); });
+  LUT.forEach((c, i) => { lg.fillStyle = c; lg.fillRect(i * 260 / NB, 0, 260 / NB + 1, 8); });
 
   // ---- timeline ----
   const slider = $('slider'), ticks = $('ticks'), playBtn = $('play');
@@ -181,26 +185,36 @@ async function main() {
     if (nt >= NY - 1) { setT(NY - 1); stop(); return; }
     setT(nt); requestAnimationFrame(loop);
   }
-  function play() { if (t >= NY - 1) setT(0); playing = true; last = 0; playBtn.textContent = '❚❚'; playBtn.setAttribute('aria-label', 'Pausa'); requestAnimationFrame(loop); }
-  function stop() { playing = false; playBtn.textContent = '▶'; playBtn.setAttribute('aria-label', 'Riproduci'); }
+  function play() { if (t >= NY - 1) setT(0); playing = true; last = 0; playBtn.textContent = 'Pausa'; story.setPlaying(true); requestAnimationFrame(loop); }
+  function stop() { playing = false; animId++; playBtn.textContent = 'Riproduci'; story.setPlaying(false); }
   playBtn.onclick = () => (playing ? stop() : play());
+  let animId = 0;
   function animateTo(j) {
-    const t0 = t; const st = performance.now();
-    const step = (now) => { const p = Math.min(1, (now - st) / 600); setT(t0 + (j - t0) * d3.easeCubicInOut(p)); if (p < 1) requestAnimationFrame(step); };
+    const t0 = t; const st = performance.now(); const id = ++animId;
+    const step = (now) => { if (id !== animId) return; const p = Math.min(1, (now - st) / 600); setT(t0 + (j - t0) * d3.easeCubicInOut(p)); if (p < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   }
   window.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+    if ((e.target.tagName === 'INPUT' && e.target.type !== 'range') || e.target.tagName === 'SELECT') return;
     if (e.code === 'Space') { e.preventDefault(); playing ? stop() : play(); }
     if (e.code === 'ArrowRight') { stop(); setT(Math.floor(t) + 1); }
     if (e.code === 'ArrowLeft') { stop(); setT(Math.ceil(t) - 1); }
   });
 
   // ---- zoom ----
-  const zoom = d3.zoom().scaleExtent([1, 80]).on('zoom', (e) => {
-    transform = e.transform; $('resetZoom').hidden = transform.k < 1.05; requestDraw();
+  // the page scrolls normally: wheel zooms only with Ctrl/Cmd, touch pans/zooms with two fingers (or one, once zoomed in)
+  const zoom = d3.zoom().scaleExtent([1, 80])
+    .filter((e) => {
+      if (e.type === 'wheel') return e.ctrlKey || e.metaKey;
+      if (e.type === 'touchstart') return e.touches.length > 1 || transform.k > 1.05;
+      return !e.button;
+    })
+    .on('zoom', (e) => {
+    transform = e.transform; $('resetZoom').hidden = transform.k < 1.05; canvas.style.touchAction = transform.k > 1.05 ? 'none' : 'pan-y'; requestDraw();
   });
   const sel = d3.select(canvas).call(zoom);
+  $('zoomIn').onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1.6);
+  $('zoomOut').onclick = () => sel.transition().duration(300).call(zoom.scaleBy, 1 / 1.6);
   $('resetZoom').onclick = () => { clearHighlight(); sel.transition().duration(900).call(zoom.transform, d3.zoomIdentity); };
   function zoomToIdx(idxs) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -258,19 +272,20 @@ async function main() {
     const y = d3.scaleLinear(d3.extent(series, (s) => s[1]), [h - 4, 4]).nice();
     const line = d3.line((s) => x(s[0]), (s) => y(s[1]))(series);
     const area = d3.area((s) => x(s[0]), h, (s) => y(s[1]))(series);
-    const col = pc < 0 ? '#ff5a4e' : '#4ea8ff';
+    const col = pc < 0 ? '#b54a14' : '#245d8f';
     const merged = d.m ? `<div class="note">Include i comuni fusi: ${d.m.join(', ')}</div>` : '';
     tip.innerHTML = `<h4>${d.n}</h4><div class="sub">${prov ? prov.n + ' (' + prov.s + ')' : ''} · ${reg || ''}</div>
       <div class="row"><span>Residenti ${years[j]}${pop.estimateYears.includes(years[j]) ? ' (stima)' : ''}</span><b>${v === v ? fmt.format(v) : 'n.d.'}</b></div>
       <div class="row"><span>Residenti ${years[0]}</span><span>${base[i] > 0 ? fmt.format(base[i]) : 'n.d.'}</span></div>
       <div class="row"><span>Variazione</span><span class="${pc < 0 ? 'neg' : 'pos'}">${pc === pc ? fmtPct(pc) : 'n.d.'}</span></div>
-      <svg width="${w}" height="${h}"><path d="${area}" fill="${col}" opacity=".15"/><path d="${line}" fill="none" stroke="${col}" stroke-width="1.8"/>
-      ${v === v ? `<circle cx="${x(years[j])}" cy="${y(v)}" r="3.5" fill="#fff"/>` : ''}</svg>${merged}`;
+      <svg width="${w}" height="${h}"><line x1="0" x2="${w}" y1="${h}" y2="${h}" stroke="#d6d2c8"/><path d="${line}" fill="none" stroke="${col}" stroke-width="1.5"/>
+      ${v === v ? `<circle cx="${x(years[j])}" cy="${y(v)}" r="3" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>` : ''}</svg>${merged}`;
     tip.hidden = false;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let left = tipPos[0] + 16, top = tipPos[1] + 16;
-    if (left + tw > innerWidth - 8) left = tipPos[0] - tw - 16;
-    if (top + th > innerHeight - 8) top = tipPos[1] - th - 16;
+    const ar = appEl.getBoundingClientRect(); const px = tipPos[0] - ar.left, py = tipPos[1] - ar.top;
+    let left = px + 16, top = py + 16;
+    if (left + tw > W - 8) left = px - tw - 16;
+    if (top + th > H - 8) top = py - th - 16;
     tip.style.left = Math.max(8, left) + 'px'; tip.style.top = Math.max(8, top) + 'px';
   }
 
@@ -291,7 +306,8 @@ async function main() {
   const maxYearFlow = Math.max(...FY.map((y) => Math.max(FL.od[y][0][2], ...REG.map((r) => FL.abroad[y][r][0]))));
   const maxCumFlow = Math.max(cumOD[0][2], ...REG.map((r) => cumAb[r][0]));
   let mode = 'pop', selReg = null, period = 'year', hoverReg = null;
-  const COL = { s2n: '#ff6a3d', n2s: '#3fd0ff', same: '#d7dce6', abroad: '#c38bff', out: '#ff6a3d', in: '#3fd0ff' };
+  // one muted hue: dark ink for the flows that matter, grey for the rest; abroad is dashed
+  const COL = { s2n: '#1a1a1a', n2s: '#7d7d7d', same: '#7d7d7d', abroad: '#1a1a1a', out: '#1a1a1a', in: '#8a8a8a' };
   const ABROAD_LL = [15.9, 47.3];
   function setupFlows() {
     const gp = d3.geoPath(projection);
@@ -331,16 +347,16 @@ async function main() {
     const k = transform.k;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * transform.x, dpr * transform.y);
-    ctx.save(); ctx.shadowColor = 'rgba(78,168,255,.18)'; ctx.shadowBlur = 30; ctx.fillStyle = '#151922'; ctx.fill(P.coast); ctx.restore();
+    ctx.fillStyle = NULLC; ctx.fill(P.coast);
     const j = Math.min(NY - 1, Math.round(t));
     REG.forEach((r) => {
       const n = regNet(r, j); const b = Math.round((Math.max(-10, Math.min(10, n)) + 10) / 20 * (NB - 1));
-      ctx.globalAlpha = selReg && selReg !== r ? 0.22 : 0.42; ctx.fillStyle = LUT[b]; ctx.fill(regPath[r]);
+      ctx.globalAlpha = selReg && selReg !== r ? 0.35 : 0.75; ctx.fillStyle = LUT[b]; ctx.fill(regPath[r]);
     });
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1 / k; ctx.stroke(P.reg); ctx.stroke(P.coast);
-    if (selReg) { ctx.strokeStyle = '#ffcf6e'; ctx.lineWidth = 2.2 / k; ctx.stroke(regPath[selReg]); }
-    else if (hoverReg) { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.6 / k; ctx.stroke(regPath[hoverReg]); }
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 / k; ctx.stroke(P.reg); ctx.strokeStyle = 'rgba(30,30,30,.55)'; ctx.lineWidth = 0.8 / k; ctx.stroke(P.coast);
+    if (selReg) { ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2 / k; ctx.stroke(regPath[selReg]); }
+    else if (hoverReg) { ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.4 / k; ctx.stroke(regPath[hoverReg]); }
     // arcs in screen space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const { list, max } = currentFlows();
@@ -353,16 +369,19 @@ async function main() {
     const geo = list.map((f) => {
       const a = pt(f.o), b = pt(f.d); const dx = b[0] - a[0], dy = b[1] - a[1]; const len = Math.hypot(dx, dy) || 1;
       const c = [(a[0] + b[0]) / 2 - dy * 0.22, (a[1] + b[1]) / 2 + dx * 0.22];
-      return { ...f, a, b, q: c, len, w: 0.5 + 9 * Math.sqrt(f.v / max) };
+      return { ...f, a, b, q: c, len, w: 0.5 + 7 * Math.sqrt(f.v / max), strong: f.d !== 'X' && (f.c === COL.s2n || f.c === COL.out) };
     });
+    geo.sort((x, y) => x.strong - y.strong); // emphasised flows on top
     for (const g of geo) {
-      ctx.strokeStyle = g.c; ctx.globalAlpha = 0.16 + 0.35 * Math.sqrt(g.v / max); ctx.lineWidth = g.w;
+      ctx.strokeStyle = g.c; ctx.globalAlpha = (g.strong ? 0.28 : 0.16) + 0.3 * Math.sqrt(g.v / max); ctx.lineWidth = g.w;
+      ctx.setLineDash(g.d === 'X' ? [4, 4] : []);
       ctx.beginPath(); ctx.moveTo(g.a[0], g.a[1]); ctx.quadraticCurveTo(g.q[0], g.q[1], g.b[0], g.b[1]); ctx.stroke();
     }
+    ctx.setLineDash([]);
     for (const g of geo) {
-      const n = Math.max(1, Math.min(40, Math.round(g.v / sum * budget)));
-      const speed = 70 / g.len; ctx.fillStyle = g.c; ctx.globalAlpha = 0.9;
-      const sz = Math.min(3.2, 1.4 + g.w * 0.18);
+      const n = Math.max(1, Math.min(30, Math.round(g.v / sum * budget)));
+      const speed = 55 / g.len; ctx.fillStyle = g.c; ctx.globalAlpha = g.strong ? 0.85 : 0.6;
+      const sz = Math.min(2.6, 1.2 + g.w * 0.15);
       for (let i = 0; i < n; i++) {
         const u = (i / n + time * speed) % 1; const v1 = 1 - u;
         const x = v1 * v1 * g.a[0] + 2 * v1 * u * g.q[0] + u * u * g.b[0];
@@ -372,20 +391,21 @@ async function main() {
     }
     ctx.globalAlpha = 1;
     // abroad anchor
-    ctx.fillStyle = COL.abroad; ctx.beginPath(); ctx.arc(X[0], X[1], 6, 0, 7); ctx.fill();
-    ctx.font = '600 12px Inter, sans-serif'; ctx.fillStyle = '#e9ddff'; ctx.textAlign = 'left'; ctx.fillText('Estero', X[0] + 10, X[1] + 4);
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(X[0] - 4, X[1] - 4, 8, 8);
+    ctx.font = '600 12.5px "IBM Plex Sans", sans-serif'; ctx.fillStyle = '#1a1a1a'; ctx.textAlign = 'left'; ctx.fillText('Estero', X[0] + 9, X[1] + 4);
     // labels for top destinations of the selected region
     if (selReg) {
-      ctx.font = '600 11.5px Inter, sans-serif'; ctx.textAlign = 'center';
+      ctx.font = '500 12px "IBM Plex Sans", sans-serif'; ctx.textAlign = 'center';
       geo.filter((g) => g.o === selReg && g.d !== 'X').sort((a, b) => b.v - a.v).slice(0, 5).forEach((g) => {
         const s = FL.regions[g.d].split('/')[0] + ' ' + fmt.format(g.v); const w = ctx.measureText(s).width + 12;
-        ctx.fillStyle = 'rgba(10,12,18,.85)'; ctx.fillRect(g.b[0] - w / 2, g.b[1] - 24, w, 18);
-        ctx.fillStyle = '#ffd2c2'; ctx.fillText(s, g.b[0], g.b[1] - 11);
+        ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(g.b[0] - w / 2, g.b[1] - 24, w, 18);
+        ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.8; ctx.strokeRect(g.b[0] - w / 2 + .5, g.b[1] - 23.5, w - 1, 17);
+        ctx.fillStyle = '#1a1a1a'; ctx.fillText(s, g.b[0], g.b[1] - 11);
       });
     }
   }
   let flowRaf = 0;
-  function flowLoop(now) { flowRaf = 0; if (mode !== 'flows') return; drawFlows(now); flowRaf = requestAnimationFrame(flowLoop); }
+  function flowLoop(now) { flowRaf = 0; if (mode !== 'flows' || !mapVisible) return; drawFlows(now); flowRaf = requestAnimationFrame(flowLoop); }
   const fpanel = $('flowPanel');
   let panelSuppressed = false;
   function renderFlowPanel() {
@@ -401,23 +421,23 @@ async function main() {
     fpanel.innerHTML = `<button class="close" id="fpClose" aria-label="Chiudi">×</button>
       <div class="fp-head"><h3>${FL.regions[r].split('/')[0]}</h3>
       <div class="seg small-seg"><button data-p="year" class="${all ? '' : 'on'}">${y}</button><button data-p="all" class="${all ? 'on' : ''}">${FY[0]}–${FY[FY.length - 1]}</button></div></div>
-      <div class="fp-net ${net < 0 ? 'neg' : 'pos'}">Saldo con le altre regioni (${label}): <b>${net > 0 ? '+' : net < 0 ? '−' : ''}${fmt.format(Math.abs(net))}</b></div>
-      <div class="fp-cols"><div><h5 class="o">Dove sono andati · ${fmt.format(tout)}</h5><ol>${li(outs, 1)}</ol></div>
-      <div><h5 class="i">Da dove arrivano · ${fmt.format(tin)}</h5><ol>${li(ins, 0)}</ol></div></div>
-      <div class="fp-abroad"><span>✈ Italiani emigrati all'estero</span><b>${fmt.format(ab[0])}</b></div>
-      <div class="fp-abroad"><span>↩ Italiani rientrati dall'estero</span><b>${fmt.format(ab[2])}</b></div>
+      <div class="fp-net">Saldo con le altre regioni (${label}): <b class="${net < 0 ? 'neg' : 'pos'}">${net > 0 ? '+' : net < 0 ? '−' : ''}${fmt.format(Math.abs(net))}</b></div>
+      <div class="fp-cols"><div><h5>Partiti verso: ${fmt.format(tout)}</h5><ol>${li(outs, 1)}</ol></div>
+      <div><h5>Arrivati da: ${fmt.format(tin)}</h5><ol>${li(ins, 0)}</ol></div></div>
+      <div class="fp-abroad"><span>Italiani emigrati all'estero</span><b>${fmt.format(ab[0])}</b></div>
+      <div class="fp-abroad"><span>Italiani rientrati dall'estero</span><b>${fmt.format(ab[2])}</b></div>
       <div class="fp-abroad mut"><span>Totale cancellati per l'estero / iscritti dall'estero (anche stranieri)</span><b>${fmt.format(ab[1])} / ${fmt.format(ab[3])}</b></div>`;
     fpanel.hidden = false;
     $('fpClose').onclick = () => selectRegion(null);
     fpanel.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { period = b.dataset.p; renderFlowPanel(); }));
   }
-  function selectRegion(r, quiet = false) { selReg = r; panelSuppressed = quiet; document.body.classList.toggle('sel', !!r); if (!r) period = 'year'; renderFlowPanel(); updateFlowHero(); }
+  function selectRegion(r, quiet = false) { selReg = r; panelSuppressed = quiet; document.body.classList.toggle('sel', !!r); if (!r) period = 'year'; renderFlowPanel(); updateFlowHero(); drawLegend(); }
   const H0 = FL.head;
   function updateFlowHero() {
     if (mode !== 'flows') return;
     const y = flowYear(); let s2n = 0, n2s = 0;
     FL.od[y].forEach(([o, d, v]) => { if (SOUTH.has(o) && !SOUTH.has(d)) s2n += v; if (!SOUTH.has(o) && SOUTH.has(d)) n2s += v; });
-    $('flowYearLine').innerHTML = `Nel ${y}${FL.provisional.includes(y) ? ' (provv.)' : ''}: <b>${fmt.format(s2n)}</b> dal Sud al Centro-Nord, <b>${fmt.format(n2s)}</b> in senso opposto · <b>${fmt.format(FL.abroad[y].IT[0])}</b> italiani all'estero`;
+    $('flowYearLine').innerHTML = `Nel ${y}${FL.provisional.includes(y) ? ' (provvisorio)' : ''}: ${fmt.format(s2n)} dal Sud al Centro-Nord, ${fmt.format(n2s)} in senso opposto; ${fmt.format(FL.abroad[y].IT[0])} italiani cancellati per l'estero.`;
   }
   const mln = (v) => (v / 1e6).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' mln';
   $('statNetSud').textContent = '−' + mln(-H0.saldo_sud);
@@ -437,6 +457,10 @@ async function main() {
     $('legendTitle').textContent = f ? 'Saldo migratorio totale, per 1.000 residenti' : 'Variazione dei residenti rispetto al 2002';
     $('legendLabels').innerHTML = f ? '<span>−10‰</span><span>0</span><span>+10‰</span>' : '<span>−30%</span><span>0</span><span>+30%</span>';
     $('legendFlows').hidden = !f;
+    const sw = (c, dash, w = 2.5) => `<svg width="22" height="6"><line x1="1" x2="21" y1="3" y2="3" stroke="${c}" stroke-width="${w}" ${dash ? 'stroke-dasharray="4 3"' : ''}/></svg>`;
+    $('legendFlows').innerHTML = selReg
+      ? `<span>${sw(COL.out)}partenze dalla regione</span><span>${sw(COL.in)}arrivi nella regione</span><span>${sw('#1a1a1a', 1)}verso l'estero</span>`
+      : `<span>${sw(COL.s2n)}dal Sud e Isole al Centro-Nord</span><span>${sw(COL.same)}altri spostamenti tra regioni</span><span>${sw('#1a1a1a', 1)}italiani verso l'estero</span>`;
   }
   function regionAt(cx, cy) { const i = pick(cx, cy); return i >= 0 ? String(data[i].r) : null; }
 
@@ -475,7 +499,7 @@ async function main() {
         stop(); animateTo(years.indexOf(2025));
       } else { clearHighlight(); sel.transition().duration(900).call(zoom.transform, d3.zoomIdentity); }
       if (!r.ok || !j.answer) throw new Error(j.error || 'Errore');
-      ans.innerHTML = '<button class="ans-close" aria-label="Chiudi risposta">×</button>' + (j.highlight ? `<div class="area">📍 ${j.highlight.label}</div>` : '') + '<div class="txt"></div><div class="meta">Risposta generata dall’AI usando solo aggregati calcolati dai dati ISTAT. Controlla sempre la mappa.</div>';
+      ans.innerHTML = '<button class="ans-close" aria-label="Chiudi risposta">×</button>' + (j.highlight ? `<div class="area">${j.highlight.label}</div>` : '') + '<div class="txt"></div><div class="meta">Risposta generata dall’AI usando solo aggregati calcolati dai dati ISTAT. Controlla sempre la mappa.</div>';
       ans.querySelector('.ans-close').onclick = () => { ans.hidden = true; clearHighlight(); sel.transition().duration(900).call(zoom.transform, d3.zoomIdentity); };
       const el = ans.querySelector('.txt'); const txt = j.answer; let n = 0;
       const tick = () => { n = Math.min(txt.length, n + 4); el.textContent = txt.slice(0, n); if (n < txt.length) requestAnimationFrame(tick); };
@@ -485,11 +509,15 @@ async function main() {
     } finally { btn.disabled = false; }
   });
 
-  // info
-  $('infoBtn').onclick = () => ($('info').hidden = false);
-  $('infoClose').onclick = () => ($('info').hidden = true);
+  // map drawing pauses while the map is scrolled out of view
+  new IntersectionObserver(([e]) => {
+    mapVisible = e.isIntersecting;
+    if (mapVisible) { if (mode === 'flows') { if (!flowRaf) flowRaf = requestAnimationFrame(flowLoop); } else if (pendingDraw) { pendingDraw = false; requestDraw(); } }
+  }).observe(appEl);
 
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { setup(); requestDraw(); }, 150); });
+  story = initStory({ years, vals, base, N, NY, data, natTot, lossCount, pop, flows: FL, regPop, SOUTH, LUT, NB, fmt, fmtPct,
+    setYear: (j) => { stop(); animateTo(j); }, jumpYear: (j) => { stop(); setT(j); }, togglePlay: () => (playing ? stop() : play()) });
   setup(); drawLegend(); updateUI(); draw();
   if (new URLSearchParams(location.search).get('mode') === 'flows') setMode('flows');
   $('loading').classList.add('done');

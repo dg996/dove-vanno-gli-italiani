@@ -3,21 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>L'Italia che si svuota · 7.896 comuni, 2002–2026</title>
-  <meta name="description" content="Mappa animata della popolazione di tutti i comuni italiani dal 2002 al 2026, con dati ISTAT, e un'AI che risponde solo dai dati." />
-  <meta name="theme-color" content="#0b0d12" />
-  <meta property="og:title" content="L'Italia che si svuota" />
-  <meta property="og:description" content="Come è cambiata la popolazione di ogni comune italiano dal 2002 a oggi. Dati ISTAT." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23ff5a4e'/><circle cx='16' cy='16' r='7' fill='%230b0d12'/></svg>" />
+  <title>dovevannogliitaliani</title>
+  <meta name="description" content="La popolazione di tutti i comuni italiani dal 2002 al 2026 e i trasferimenti di residenza tra regioni e verso l'estero, con dati ISTAT." />
+  <meta name="theme-color" content="#f6f4ef" />
+  <meta property="og:title" content="dovevannogliitaliani" />
+  <meta property="og:site_name" content="dovevannogliitaliani" />
+  <meta property="og:url" content="https://dovevannogliitaliani.vercel.app" />
+  <meta name="application-name" content="dovevannogliitaliani" />
+  <meta name="apple-mobile-web-app-title" content="dovevannogliitaliani" />
+  <meta property="og:description" content="Come è cambiata la popolazione di ogni comune italiano dal 2002 a oggi e dove si spostano le persone. Dati ISTAT." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f6f4ef'/><rect x='5' y='14' width='5' height='13' fill='%23245d8f'/><rect x='13.5' y='9' width='5' height='18' fill='%231a1a1a'/><rect x='22' y='18' width='5' height='9' fill='%23b54a14'/></svg>" />
 </head>
 <body>
+  <nav class="topbar">
+    <a class="brand" href="#top">dovevannogliitaliani</a>
+    <span class="nav"><a href="#anno">Anno per anno</a><a href="#spostamenti">Spostamenti</a><a href="#fonti">Fonti</a></span>
+  </nav>
   <div id="app">
     <canvas id="map" aria-label="Mappa dei comuni italiani colorati per variazione di popolazione"></canvas>
-    <div id="loading"><div class="spinner"></div><span>Carico 7.896 comuni…</span></div>
+    <div id="loading"><span>Caricamento dei dati ISTAT…</span></div>
 
-    <header class="panel hero">
-      <div class="kicker">Dati ISTAT · 2002–2026</div>
-      <h1>L'Italia che <em>si svuota</em></h1>
+    <header class="panel hero" id="top">
+      <div class="kicker">Dati ISTAT, 2002–2026</div>
+      <h1>dovevannogliitaliani</h1>
       <p class="lede">Ogni comune italiano, colorato in base a quanto è cambiata la sua popolazione rispetto al 2002.</p>
       <div class="bigyear"><span id="year">2002</span><span id="yearTag"></span></div>
       <div class="stats pop-only">
@@ -25,8 +33,8 @@
         <div><b id="statLoss">–</b><span>comuni in calo dal 2002</span></div>
       </div>
       <div class="stats flows-only">
-        <div><b id="statNetSud" class="neg">–</b><span>saldo netto Sud e Isole verso Centro-Nord, 2002–2025</span></div>
-        <div><b id="statEmi" class="vio">–</b><span>italiani emigrati all'estero, 2002–2025</span></div>
+        <div><b id="statNetSud">–</b><span>saldo netto Sud e Isole verso Centro-Nord, 2002–2025</span></div>
+        <div><b id="statEmi">–</b><span>italiani emigrati all'estero, 2002–2025</span></div>
       </div>
       <div id="flowYearLine" class="flowline flows-only"></div>
     </header>
@@ -36,15 +44,15 @@
       <button data-mode="flows">Spostamenti</button>
     </div>
     <aside class="panel flowpanel" id="flowPanel" hidden></aside>
-    <div class="panel hint flows-only" id="flowHint">Tocca una regione per vedere dove va la sua gente</div>
+    <div class="panel hint flows-only" id="flowHint">Tocca una regione per vedere dove si trasferiscono i suoi residenti</div>
 
     <aside class="panel ask" id="askPanel">
-      <div class="ask-head"><span class="dot"></span> Chiedi ai dati</div>
+      <div class="ask-head">Fai una domanda ai dati</div>
       <form id="askForm" autocomplete="off">
-        <input id="askInput" maxlength="300" placeholder="Es. dove è andata la gente di Molise e Basilicata?" />
-        <button type="submit" id="askBtn" aria-label="Chiedi">→</button>
+        <input id="askInput" maxlength="300" placeholder="Es. dove va chi lascia la Calabria?" />
+        <button type="submit" id="askBtn">Chiedi</button>
       </form>
-      <div class="chips" id="chips">
+      <div class="chips" id="chips"><span class="chips-l">Esempi:</span>
         <button>Dove è andata la gente di Molise e Basilicata?</button>
         <button>Quali province si svuotano di più?</button>
         <button>Come è cambiata la Sardegna?</button>
@@ -56,18 +64,13 @@
 
     <div class="panel legend">
       <div class="legend-title" id="legendTitle">Variazione dei residenti rispetto al 2002</div>
-      <canvas id="legendBar" width="260" height="10"></canvas>
+      <canvas id="legendBar" width="260" height="8"></canvas>
       <div class="legend-labels" id="legendLabels"><span>−30%</span><span>0</span><span>+30%</span></div>
-      <div class="legend-flows" id="legendFlows" hidden>
-        <span><i style="background:#ff6a3d"></i>Sud → Centro-Nord · in uscita</span>
-        <span><i style="background:#3fd0ff"></i>Centro-Nord → Sud · in arrivo</span>
-        <span><i style="background:#d7dce6"></i>stessa area</span>
-        <span><i style="background:#c38bff"></i>italiani verso l'estero</span>
-      </div>
+      <div class="legend-flows" id="legendFlows" hidden></div>
     </div>
 
     <div class="timeline panel">
-      <button id="play" aria-label="Riproduci">▶</button>
+      <button id="play" class="btn">Riproduci</button>
       <div class="track">
         <input type="range" id="slider" min="0" max="24" step="0.001" value="0" aria-label="Anno" />
         <div class="ticks" id="ticks"></div>
@@ -75,11 +78,67 @@
     </div>
 
     <div id="tooltip" class="tooltip" hidden></div>
+    <div class="zoomctl panel"><button id="zoomIn" aria-label="Ingrandisci">+</button><button id="zoomOut" aria-label="Riduci">−</button></div>
     <button id="resetZoom" class="panel small" hidden>Vista intera</button>
-    <button id="infoBtn" class="panel small info">Fonti e note</button>
-    <div id="info" class="panel infobox" hidden>
-      <button class="close" id="infoClose" aria-label="Chiudi">×</button>
-      <h3>Fonti</h3>
+    <a id="infoBtn" class="panel small info" href="#fonti">Fonti e note</a>
+    <div class="scrollcue" id="scrollcue">Scorri per i grafici anno per anno</div>
+  </div>
+
+  <main class="story">
+    <div class="yearbar" id="yearbar">
+      <div class="yb-in">
+        <span class="yb-l">Anno</span>
+        <button class="btn" id="ybPrev" aria-label="Anno precedente">‹</button>
+        <b id="ybYear">2002</b>
+        <button class="btn" id="ybNext" aria-label="Anno successivo">›</button>
+        <input type="range" id="ybSlider" min="0" max="24" step="1" value="0" aria-label="Anno" />
+        <span class="yb-tag" id="ybTag"></span>
+        <button class="btn" id="ybPlay">Riproduci</button>
+      </div>
+    </div>
+
+    <section class="sec" id="anno">
+      <h2>Anno per anno</h2>
+      <p class="intro">Scorrendo, l'anno cambia insieme ai grafici e alla mappa qui sopra. Puoi anche sceglierlo con la barra in alto.</p>
+      <div class="scrolly" data-scrolly>
+        <figure class="fig"><figcaption>Residenti in Italia al 1° gennaio</figcaption><div id="chartPop" class="chart"></div></figure>
+        <div class="steps" id="stepsPop"></div>
+      </div>
+
+      <h3 id="regTitle">Variazione dei residenti per regione</h3>
+      <p class="note" id="regNote"></p>
+      <div id="chartReg" class="chart"></div>
+
+      <h3 id="comTitle">I comuni che perdono e guadagnano più residenti</h3>
+      <div class="controls" id="comCtl">
+        <label>Confronto <select id="comBase"><option value="2002">rispetto al 2002</option><option value="prev">rispetto all'anno prima</option></select></label>
+        <label>Comuni con almeno <select id="comMin"><option value="0">qualsiasi popolazione</option><option value="5000" selected>5.000 residenti</option><option value="50000">50.000 residenti</option></select></label>
+        <label>Ordina per <select id="comMetric"><option value="pct">variazione %</option><option value="abs">variazione assoluta</option></select></label>
+      </div>
+      <div class="tables2">
+        <div><h4>In calo</h4><table class="tbl sortable" id="tblLoss"></table></div>
+        <div><h4>In crescita</h4><table class="tbl sortable" id="tblGain"></table></div>
+      </div>
+    </section>
+
+    <section class="sec" id="spostamenti">
+      <h2>Dove vanno</h2>
+      <p class="intro">Trasferimenti di residenza registrati in anagrafe durante l'anno: tra regioni diverse e verso l'estero. Il 2025 è provvisorio; per il 2026 si mostra il 2025.</p>
+      <div class="scrolly" data-scrolly>
+        <figure class="fig"><figcaption>Trasferimenti tra Sud e Isole e Centro-Nord, persone per anno</figcaption><div id="chartSud" class="chart"></div></figure>
+        <div class="steps" id="stepsSud"></div>
+      </div>
+      <div class="scrolly" data-scrolly>
+        <figure class="fig"><figcaption>Cittadini italiani: cancellati per l'estero e rientrati, persone per anno</figcaption><div id="chartAbroad" class="chart"></div></figure>
+        <div class="steps" id="stepsAbroad"></div>
+      </div>
+      <h3 id="odTitle">I 15 spostamenti più frequenti tra regioni</h3>
+      <table class="tbl sortable wide" id="tblOD"></table>
+    </section>
+
+    <section class="sec fonti" id="fonti">
+      <h2>Fonti e note</h2>
+      <h3 class="sm">Fonti</h3>
       <ul>
         <li>ISTAT, <a href="https://demo.istat.it/app/?i=RIC&l=it" target="_blank" rel="noopener">Ricostruzione della popolazione intercensuaria</a>: residenti al 1° gennaio 2002–2019 per comune.</li>
         <li>ISTAT, <a href="https://demo.istat.it/app/?i=POS&l=it" target="_blank" rel="noopener">Popolazione residente al 1° gennaio (POSAS)</a>: 2020–2025; 2026 è una <b>stima</b> provvisoria.</li>
@@ -87,7 +146,7 @@
         <li>ISTAT, <a href="https://demo.istat.it/tavole/?l=it&t=apr4" target="_blank" rel="noopener">Trasferimenti di residenza</a> (dataset 28_185 DCIS_MIGRAZIONI: migrazioni interne; emigrati e immigrati per provincia/regione; emigrati per paese di destinazione), 2002–2025; il 2025 è <b>provvisorio</b>.</li>
         <li>ISTAT, <a href="https://www.istat.it/storage/codici-unita-amministrative/Variazioni-amministrative-e-territoriali-dal-1991.zip" target="_blank" rel="noopener">Variazioni amministrative dal 1991</a> ed Elenco dei comuni soppressi.</li>
       </ul>
-      <h3>Note</h3>
+      <h3 class="sm">Note</h3>
       <ul>
         <li>Tutti i dati sono riportati sui <b>confini comunali al 1° gennaio 2026</b> (7.896 comuni). I comuni nati da fusioni mostrano la somma dei comuni d'origine per gli anni precedenti; cambi di codice e di provincia (es. Sardegna) sono ricondotti al comune attuale.</li>
         <li>Misiliscemi (TP) è nato nel 2021 da una parte di Trapani: non ha dati prima del 2022 e il calo di Trapani nel 2022 è in parte dovuto al distacco.</li>
@@ -97,8 +156,9 @@
         <li>Estero: cancellazioni per l'estero e iscrizioni dall'estero; l'emigrazione reale è probabilmente più alta perché non tutti si cancellano dall'anagrafe. Il colore delle regioni in modalità Spostamenti è il saldo migratorio totale (interno + estero) per 1.000 residenti nell'anno. Per il 2026 non ci sono ancora dati sui flussi: si mostra il 2025.</li>
         <li>L'AI risponde solo sulla base di dati aggregati calcolati da questi file; i dati di popolazione non dicono <i>dove</i> le persone si sono trasferite.</li>
       </ul>
-    </div>
-  </div>
+    </section>
+    <footer class="foot">dovevannogliitaliani · dati ISTAT · <a href="https://github.com/dg996/dove-vanno-gli-italiani">codice su GitHub</a></footer>
+  </main>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

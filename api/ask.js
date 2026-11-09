@@ -90,7 +90,7 @@ function limited(ip) {
   return arr.length > 6;
 }
 
-const SYSTEM = `Sei l'assistente di "L'Italia che si svuota", una mappa dei dati ISTAT sulla popolazione residente dei comuni italiani (2002-2026).
+const SYSTEM = `Sei l'assistente di "dovevannogliitaliani", una mappa dei dati ISTAT sulla popolazione residente dei comuni italiani (2002-2026).
 Regole:
 - Rispondi in italiano, in modo chiaro e coinvolgente, massimo 110 parole, senza titoli né elenchi lunghi.
 - Usa SOLO i numeri presenti nei DATI forniti. Non inventare cifre, cause certe o fonti esterne. Arrotonda in modo leggibile (es. "-10,1%", "circa 31 mila persone").
